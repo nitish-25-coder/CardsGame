@@ -3,7 +3,7 @@ from PIL import Image, ImageTk
 import random
 from tkinter import messagebox
 
-# Define the properties of the cards("numbers","colors")
+# Define the properties of the cards ("numbers", "colors")
 colors = ["Red", "Green", "Blue", "Yellow"]
 numbers = list(range(1, 10))
 deck = [f"{color} {number}" for color in colors for number in numbers]
@@ -11,96 +11,144 @@ deck = [f"{color} {number}" for color in colors for number in numbers]
 # Shuffling the deck
 random.shuffle(deck)
 
-# Players
+# Players' hands and discard pile
 player1_hand = []
 player2_hand = []
+discard_pile = []
 
-# give first three cards to each player
+# Give first three cards to each player
 for _ in range(3):
     player1_hand.append(deck.pop())
     player2_hand.append(deck.pop())
 
-# setup output window using tkinter
+# Set up the output window using tkinter
 app = tk.Tk()
 app.title("Card Game")
-app.geometry("800x600")
+app.geometry("1600x1000")  # Increased window size
 app.configure(bg="green")
 
 # Load the card images on the output window
 card_images = {}
+
+
 def load_card_images():
     for card in deck + player1_hand + player2_hand:
         color, number = card.split()
         img_path = f"images/{color.lower()}_{number}.png"  # Ensure these images exist
-        img = Image.open(img_path).resize((80, 120))
+        img = Image.open(img_path).resize((100, 150))  # Increased size
         card_images[card] = ImageTk.PhotoImage(img)
+    # Load special images for deck and discard
+    deck_img = Image.open("images/deck.png").resize((100, 150))  # Increased size
+    discard_img = Image.open("images/discard_placeholder.png").resize((100, 150))  # Increased size
+    card_images["deck"] = ImageTk.PhotoImage(deck_img)
+    card_images["discard_placeholder"] = ImageTk.PhotoImage(discard_img)
+
+
 load_card_images()
 
 # Canvas to display cards
-canvas = tk.Canvas(app, width=800, height=400, bg="green")
+canvas = tk.Canvas(app, width=1500, height=700, bg="green")  # Enlarged canvas height
 canvas.pack()
 
-# Labels to show player hands
-player1_label = tk.Label(app, text="Player 1", font=("Helvetica", 14), bg="green", fg="white")
-player1_label.place(x=100, y=450)
+# Labels for player hands
+player1_label = tk.Label(app, text="Player 1", font=("Helvetica", 16, "bold"), bg="green", fg="white")
+player1_label.place(x=200, y=800)
 
-player2_label = tk.Label(app, text="Player 2", font=("Helvetica", 14), bg="green", fg="white")
-player2_label.place(x=600, y=450)
+player2_label = tk.Label(app, text="Player 2", font=("Helvetica", 16, "bold"), bg="green", fg="white")
+player2_label.place(x=1000, y=800)
 
-# Label to display winner
-winner_label = tk.Label(app, text="", font=("Helvetica", 18, "bold"), bg="green", fg="yellow")
-winner_label.place(x=300, y=50)
+# Label to display winner (hidden initially)
+winner_label = tk.Label(app, text="", font=("Helvetica", 24, "bold"), bg="green", fg="yellow")
+winner_label.place(x=700, y=300)
 
-# Draw button functionality
-def draw_card(player):
-    global deck
+# Variable to track the current player (1 or 2)
+current_player = 1
+
+
+# Draw from deck or discard
+def draw_from_deck(player):
+    global current_player
     if not deck:
         messagebox.showinfo("Game Over", "No more cards in the deck!")
         return
-
     card = deck.pop()
-
     if player == 1:
         player1_hand.append(card)
         update_player_display(player1_hand, 1)
-        throw_card(player1_hand, 1)
+        current_player = 2  # Switch to the next player's turn
     elif player == 2:
         player2_hand.append(card)
         update_player_display(player2_hand, 2)
-        throw_card(player2_hand, 2)
+        current_player = 1  # Switch to the next player's turn
+    check_win_conditions()
 
-# Function to allow player to throw a card
-def throw_card(hand, player):
-    def on_card_click(event):
-        x, y = event.x, event.y
-        for i, card in enumerate(hand):
-            x_start = 50 if player == 1 else 450
-            card_x = x_start + i * 100
-            if card_x <= x <= card_x + 80:
-                thrown_card = hand.pop(i)
-                update_player_display(hand, player)
-                deck.insert(0, thrown_card)  # Put the thrown card back on top of the deck
 
-                # Check for win condition after the card is thrown
-                if check_win_conditions():
-                    return  # Stop further interaction if a player has won
-                return
+def draw_from_discard(player):
+    global current_player
+    if not discard_pile:
+        messagebox.showinfo("Invalid Action", "No cards in the discard pile!")
+        return
+    card = discard_pile.pop()
+    if player == 1:
+        player1_hand.append(card)
+        update_player_display(player1_hand, 1)
+        current_player = 2  # Switch to the next player's turn
+    elif player == 2:
+        player2_hand.append(card)
+        update_player_display(player2_hand, 2)
+        current_player = 1  # Switch to the next player's turn
+    check_win_conditions()
 
-    canvas.bind("<Button-1>", on_card_click)
+
+# Throw a card to the discard pile
+def throw_card(hand, player, card_index):
+    global current_player
+    thrown_card = hand.pop(card_index)
+    discard_pile.append(thrown_card)
+    update_deck_and_discard_pile()
+    update_player_display(hand, player)
+
+    # Check for win condition after a card is thrown
+    if check_win_conditions():
+        display_winner(player)
+        return  # Stop further interaction if a player has won
+
+    if not hand:  # If the player has no more cards after throwing
+        display_winner(player)
+
 
 # Update the display for player hands
 def update_player_display(hand, player):
-    x_start = 50 if player == 1 else 450
-    y_start = 300
+    x_start = 200 if player == 1 else 1000
+    y_start = 500  # Adjusted y position for alignment
     canvas.delete(f"player{player}")
-    for i, card in enumerate(hand):
-        x = x_start + i * 100
-        y = y_start
-        canvas.create_image(x, y, image=card_images[card], anchor="nw", tags=f"player{player}")
+    max_cards_per_row = 8  # Maximum cards in one row
 
-# Initial display of player hands
-update_player_display(player1_hand, 1)
-update_player_display(player2_hand, 2)
+    for i, card in enumerate(hand):
+        x = x_start + (i % max_cards_per_row) * 120  # Adjusted horizontal spacing
+        y = y_start + (i // max_cards_per_row) * 160  # Wrap to next row if needed
+        card_id = canvas.create_image(x, y, image=card_images[card], anchor="nw", tags=f"player{player}")
+        canvas.tag_bind(card_id, "<Button-1>", lambda e, i=i: throw_card(hand, player, i))
+
+
+# Update the deck and discard pile
+def update_deck_and_discard_pile():
+    canvas.delete("deck", "discard")  # Clear existing deck and discard items
+
+    # Place the deck image on the canvas
+    deck_x, deck_y = 600, 250  # Adjusted position for better visibility
+    canvas.create_image(deck_x, deck_y, image=card_images["deck"], anchor="nw", tags="deck")
+    canvas.tag_bind("deck", "<Button-1>", lambda e: draw_from_deck(current_player))
+
+    # Place the discard pile image next to the deck
+    discard_x, discard_y = deck_x + 150, deck_y  # Right of the deck
+    if discard_pile:
+        top_card = discard_pile[-1]
+        canvas.create_image(discard_x, discard_y, image=card_images[top_card], anchor="nw", tags="discard")
+    else:
+        canvas.create_image(discard_x, discard_y, image=card_images["discard_placeholder"], anchor="nw", tags="discard")
+    canvas.tag_bind("discard", "<Button-1>", lambda e: draw_from_discard(current_player))
+
 
 # Check win conditions
 def check_win_conditions():
@@ -112,25 +160,22 @@ def check_win_conditions():
         return number_count or color_count
 
     if has_winning_combination(player1_hand):
-        winner_label.config(text="Player 1 Wins!")
-        disable_buttons()
         return True
     elif has_winning_combination(player2_hand):
-        winner_label.config(text="Player 2 Wins!")
-        disable_buttons()
         return True
     return False
 
-# Disable buttons at the end of the game
-def disable_buttons():
-    player1_button.config(state="disabled")
-    player2_button.config(state="disabled")
 
-# Buttons for player actions
-player1_button = tk.Button(app, text="Player 1 Draw", bg="blue", fg="white", font=("Helvetica", 14), command=lambda: draw_card(1))
-player1_button.place(x=100, y=520, width=200, height=50)
+# Display the winner in the same window by clearing other elements
+def display_winner(player):
+    canvas.delete("all")  # Clear all items on the canvas
+    winner_label.config(text=f"Player {player} Wins!")
+    winner_label.place(x=700, y=300)  # Centered winner label
 
-player2_button = tk.Button(app, text="Player 2 Draw", bg="red", fg="white", font=("Helvetica", 14), command=lambda: draw_card(2))
-player2_button.place(x=500, y=520, width=200, height=50)
+
+# Initial display of player hands and discard pile
+update_player_display(player1_hand, 1)
+update_player_display(player2_hand, 2)
+update_deck_and_discard_pile()
 
 app.mainloop()
